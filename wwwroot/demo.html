@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Data Auth Project</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f5f2;
+    --panel: #ffffff;
+    --border: #e2ddd2;
+    --text: #201f1a;
+    --muted: #6b6558;
+    --accent: #4a4436;
+    --accent-hover: #322e24;
+    --ok: #2f7d4f;
+    --ok-bg: #eaf5ee;
+    --err: #a3352b;
+    --err-bg: #fbeceb;
+    --warn: #93641d;
+    --warn-bg: #fbf1e0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    min-height: 100vh;
+  }
+  a { color: var(--accent); }
+
+  .visually-hidden {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  button {
+    font-family: inherit; font-size: 14px; cursor: pointer;
+    border-radius: 6px; border: 1px solid var(--border); background: var(--panel);
+    padding: 9px 16px; color: var(--text);
+  }
+  button:hover:not(:disabled) { background: #f0ede6; }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.link { border: none; background: none; padding: 2px 4px; font-size: 12px; color: var(--accent); text-decoration: underline; }
+  input {
+    font-family: inherit; font-size: 14px;
+    border: 1px solid var(--border); border-radius: 6px; padding: 10px;
+    width: 100%; background: #fff; color: var(--text);
+  }
+  input:focus, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px;
+  }
+  .banner {
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 12px;
+    display: none;
+  }
+  .banner.show { display: block; }
+  .banner.error { background: var(--err-bg); color: var(--err); }
+  .banner.warn { background: var(--warn-bg); color: var(--warn); }
+  .banner.ok { background: var(--ok-bg); color: var(--ok); }
+
+  /* ---------- Login view ---------- */
+  #loginView { max-width: 420px; margin: 60px auto; padding: 0 16px; }
+  #loginView h1 { font-size: 21px; margin: 0 0 4px; }
+  #loginView p.sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  .field { margin-bottom: 14px; }
+  .field-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); display: block; margin-bottom: 6px; }
+  .password-row { position: relative; }
+  .password-row input { padding-right: 60px; }
+  .password-row button { position: absolute; right: 4px; top: 4px; bottom: 4px; padding: 0 10px; }
+  .divider { display: flex; align-items: center; gap: 10px; margin: 20px 0; color: var(--muted); font-size: 12px; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .role-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+  .role-grid button { padding: 10px 6px; font-size: 13px; }
+  .demo-creds { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  .demo-creds code { background: #f0ede6; padding: 1px 5px; border-radius: 4px; }
+
+  /* ---------- Dashboard view ---------- */
+  #dashboardView { display: none; }
+  #dashboardView.show { display: block; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+  }
+  .topbar h1 { font-size: 16px; margin: 0; }
+  .topbar .right { display: flex; align-items: center; gap: 14px; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    padding: 5px 10px; border-radius: 999px; background: #f0ede6; color: var(--muted);
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #999; }
+  .status-pill.connected .status-dot { background: var(--ok); }
+  .status-pill.connected { background: var(--ok-bg); color: var(--ok); }
+  .status-pill.connecting .status-dot { background: var(--warn); }
+  .status-pill.connecting { background: var(--warn-bg); color: var(--warn); }
+  .status-pill.error .status-dot { background: var(--err); }
+  .status-pill.error { background: var(--err-bg); color: var(--err); }
+  .role-badge {
+    font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px;
+    background: var(--accent); color: #fff;
+  }
+  .username-label { font-size: 12px; color: var(--muted); }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .kpi .value { font-size: 26px; font-weight: 700; }
+  .kpi .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar input[type="search"] { max-width: 260px; }
+  .toolbar .spacer { flex: 1; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 13px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { background: #f0ede6; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); cursor: pointer; user-select: none; }
+  th:hover { color: var(--text); }
+  th .sort-arrow { opacity: 0.4; margin-left: 4px; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #faf9f6; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--muted); font-size: 13px; }
+  .skeleton-row td { background: linear-gradient(90deg, #f0ede6 25%, #e6e2d8 37%, #f0ede6 63%); background-size: 400% 100%; animation: shimmer 1.4s infinite; height: 18px; }
+  @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+
+  footer.note { text-align: center; color: var(--muted); font-size: 12px; margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN VIEW ============ -->
+<section id="loginView">
+  <div class="card">
+    <h1>Data Auth Project</h1>
+    <p class="sub">Sign in to view role-filtered data.</p>
+
+    <form id="loginForm" novalidate>
+      <div class="field">
+        <label class="field-label" for="usernameInput">Username</label>
+        <input id="usernameInput" name="username" type="text" autocomplete="username" required />
+      </div>
+      <div class="field">
+        <label class="field-label" for="passwordInput">Password</label>
+        <div class="password-row">
+          <input id="passwordInput" name="password" type="password" autocomplete="current-password" required />
+          <button type="button" class="link" id="togglePassword">Show</button>
+        </div>
+      </div>
+
+      <div id="loginError" class="banner error" role="alert"></div>
+
+      <button id="signInBtn" class="primary" type="submit" style="width:100%; margin-top:6px;">Sign in</button>
+    </form>
+
+    <div class="divider">or use a demo account</div>
+
+    <div class="role-grid" role="group" aria-label="Quick demo login">
+      <button type="button" data-role="Admin">Admin</button>
+      <button type="button" data-role="Manager">Manager</button>
+      <button type="button" data-role="HR">HR</button>
+      <button type="button" data-role="Support">Support</button>
+      <button type="button" data-role="Guest">Guest</button>
+    </div>
+
+    <div class="demo-creds">
+      Demo accounts all use password <code>Password123!</code> (e.g. <code>admin.demo</code>, <code>manager.demo</code>).
+    </div>
+  </div>
+</section>
+
+<!-- ============ DASHBOARD VIEW ============ -->
+<div id="dashboardView">
+  <div class="topbar">
+    <h1>Data Auth Project</h1>
+    <div class="right">
+      <span id="roleBadge" class="role-badge">—</span>
+      <button id="signOutBtn" type="button">Sign out</button>
+    </div>
+  </div>
+
+  <main>
+    <div id="dashboardBanner" class="banner" role="alert"></div>
+
+    <div class="toolbar">
+      <span class="spacer"></span>
+      <button id="refreshBtn" type="button">Refresh</button>
+      <button id="reloadPoliciesBtn" type="button" style="display:none;">Reload access policies</button>
+    </div>
+
+    <div id="tableWrap">
+      <table id="dataTable" aria-live="polite">
+        <thead><tr id="headerRow"></tr></thead>
+        <tbody id="bodyRows"></tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // Demo account usernames - all seeded with the password Password123!
+  // (see README's SQL setup script for the actual bcrypt hashes).
+  const DEMO_USERNAMES = {
+    Admin: "admin.demo",
+    Manager: "manager.demo",
+    HR: "hr.demo",
+    Support: "support.demo",
+    Guest: "guest.demo"
+  };
+  const DEMO_PASSWORD = "Password123!";
+  const SESSION_KEY = "dataAuthSimulator.session";
+  const REFRESH_MARGIN_MS = 60 * 1000; // refresh 60s before actual expiry
+
+  // ---- DOM refs ----
+  const loginView = document.getElementById("loginView");
+  const dashboardView = document.getElementById("dashboardView");
+  const loginForm = document.getElementById("loginForm");
+  const usernameInput = document.getElementById("usernameInput");
+  const passwordInput = document.getElementById("passwordInput");
+  const togglePasswordBtn = document.getElementById("togglePassword");
+  const loginError = document.getElementById("loginError");
+  const signInBtn = document.getElementById("signInBtn");
+  const signOutBtn = document.getElementById("signOutBtn");
+  const roleBadge = document.getElementById("roleBadge");
+  const dashboardBanner = document.getElementById("dashboardBanner");
+  const refreshBtn = document.getElementById("refreshBtn");
+  const reloadPoliciesBtn = document.getElementById("reloadPoliciesBtn");
+  const headerRow = document.getElementById("headerRow");
+  const bodyRows = document.getElementById("bodyRows");
+
+  let connection = null;
+  let latestRows = [];
+  let sortState = { column: null, ascending: true };
+  let refreshTimer = null;
+
+  // session: accessToken, accessTokenExpiresAt (epoch ms), refreshToken, role, username
+  let session = null;
+
+  // ---- Session persistence (sessionStorage only - cleared on sign
+  // out or tab close; a page refresh silently re-uses it via the
+  // refresh token, same as any real app's "stay signed in" behavior) ----
+  function saveSession() {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  }
+  function loadSession() {
+    try {
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+  function clearSession() {
+    session = null;
+    sessionStorage.removeItem(SESSION_KEY);
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+  }
+
+  // ---- View switching ----
+  function showLogin() {
+    dashboardView.classList.remove("show");
+    loginView.style.display = "block";
+    signInBtn.disabled = false;
+    signInBtn.textContent = "Sign in";
+  }
+  function showDashboard() {
+    loginView.style.display = "none";
+    dashboardView.classList.add("show");
+  }
+
+  function showLoginError(message) {
+    loginError.textContent = message;
+    loginError.classList.add("show");
+  }
+  function clearLoginError() {
+    loginError.classList.remove("show");
+    loginError.textContent = "";
+  }
+  function showDashboardBanner(kind, message) {
+    dashboardBanner.className = "banner " + kind + " show";
+    dashboardBanner.textContent = message;
+  }
+  function clearDashboardBanner() {
+    dashboardBanner.className = "banner";
+    dashboardBanner.textContent = "";
+  }
+
+  // ---- Auth API calls ----
+  async function apiLogin(username, password) {
+    const res = await fetch("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || ("Login failed (" + res.status + ")"));
+    }
+    return body;
+  }
+
+  async function apiRefresh(refreshToken) {
+    const res = await fetch("/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken })
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      throw new Error(body.error || ("Refresh failed (" + res.status + ")"));
+    }
+    return body;
+  }
+
+  async function apiLogout(refreshToken) {
+    try {
+      await fetch("/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken })
+      });
+    } catch { /* best-effort - sign-out proceeds locally regardless */ }
+  }
+
+  // Proactively refreshes the access token before it actually expires,
+  // so a long-lived dashboard session (and reconnect attempts, and the
+  // reload-policies call) never hits an expired-token error out of the
+  // blue. Checked on an interval rather than a single setTimeout so it
+  // also self-heals if the tab was backgrounded/throttled.
+  async function ensureFreshToken() {
+    if (!session) return false;
+    if (session.accessTokenExpiresAt - Date.now() > REFRESH_MARGIN_MS) {
+      return true;
+    }
+    try {
+      const body = await apiRefresh(session.refreshToken);
+      session = {
+        username: session.username,
+        role: body.role,
+        accessToken: body.accessToken,
+        accessTokenExpiresAt: new Date(body.accessTokenExpiresAt).getTime(),
+        refreshToken: body.refreshToken
+      };
+      saveSession();
+      return true;
+    } catch (err) {
+      showDashboardBanner("error", "Your session expired and could not be renewed (" + err.message + "). Please sign in again.");
+      await signOut(false);
+      return false;
+    }
+  }
+
+  // ---- Table rendering ----
+  function renderSkeleton() {
+    headerRow.innerHTML = "<th>Loading…</th>";
+    bodyRows.innerHTML = "";
+    for (let i = 0; i < 4; i++) {
+      const tr = document.createElement("tr");
+      tr.className = "skeleton-row";
+      const td = document.createElement("td");
+      tr.appendChild(td);
+      bodyRows.appendChild(tr);
+    }
+  }
+
+  function applySort(rows) {
+    if (!sortState.column) return rows;
+    const col = sortState.column;
+    const dir = sortState.ascending ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const av = a[col], bv = b[col];
+      if (av === bv) return 0;
+      return (av > bv ? 1 : -1) * dir;
+    });
+  }
+  function renderTable() {
+    let rows = applySort(latestRows);
+
+    headerRow.innerHTML = "";
+    bodyRows.innerHTML = "";
+
+    if (!latestRows || latestRows.length === 0) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.className = "empty-state";
+      td.colSpan = 12;
+      td.textContent = "No rows returned for this role.";
+      tr.appendChild(td);
+      bodyRows.appendChild(tr);
+      return;
+    }
+
+    const columns = Object.keys(latestRows[0]);
+    columns.forEach(col => {
+      const th = document.createElement("th");
+      th.textContent = col;
+      th.tabIndex = 0;
+      th.setAttribute("role", "button");
+      th.setAttribute("aria-label", "Sort by " + col);
+      if (sortState.column === col) {
+        const arrow = document.createElement("span");
+        arrow.className = "sort-arrow";
+        arrow.textContent = sortState.ascending ? "▲" : "▼";
+        th.appendChild(arrow);
+      }
+      const toggleSort = () => {
+        if (sortState.column === col) {
+          sortState.ascending = !sortState.ascending;
+        } else {
+          sortState.column = col;
+          sortState.ascending = true;
+        }
+        renderTable();
+      };
+      th.addEventListener("click", toggleSort);
+      th.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort(); } });
+      headerRow.appendChild(th);
+    });
+
+    rows.forEach(row => {
+      const tr = document.createElement("tr");
+      columns.forEach(col => {
+        const td = document.createElement("td");
+        td.textContent = row[col]; // textContent, never innerHTML - PublicNotes is free text
+        tr.appendChild(td);
+      });
+      bodyRows.appendChild(tr);
+    });
+  }
+
+  // ---- SignalR connection ----
+  async function connectHub() {
+    if (connection) {
+      try { await connection.stop(); } catch { /* ignore */ }
+    }
+
+    connection = new signalR.HubConnectionBuilder()
+      .withUrl("/hubs/data", {
+        accessTokenFactory: () => session ? session.accessToken : "",
+        transport: signalR.HttpTransportType.WebSockets,
+        skipNegotiation: true
+      })
+      .withAutomaticReconnect([0, 2000, 5000, 10000])
+      .configureLogging(signalR.LogLevel.Warning)
+      .build();
+
+    connection.on("Connected", () => {
+      roleBadge.textContent = session.role;
+      reloadPoliciesBtn.style.display = session.role === "Admin" ? "inline-block" : "none";
+      showDashboard();
+      renderSkeleton();
+    });
+
+    connection.on("ReceiveDataStream", (data) => {
+      latestRows = data || [];
+      clearDashboardBanner();
+      renderTable();
+    });
+
+    connection.on("DataStreamError", (err) => {
+      showDashboardBanner("error", "Server error: " + err);
+      latestRows = [];
+      renderTable();
+    });
+
+    connection.onreconnecting(async () => {
+      await ensureFreshToken();
+    });
+    connection.onreconnected(() => {
+      connection.invoke("RequestDataStream").catch(() => {});
+    });
+
+    await connection.start();
+    await connection.invoke("RequestDataStream");
+  }
+
+  // ---- Login / logout ----
+  async function performLogin(username, password) {
+    clearLoginError();
+    signInBtn.disabled = true;
+    signInBtn.textContent = "Signing in…";
+
+    try {
+      const body = await apiLogin(username, password);
+      session = {
+        username,
+        role: body.role,
+        accessToken: body.accessToken,
+        accessTokenExpiresAt: new Date(body.accessTokenExpiresAt).getTime(),
+        refreshToken: body.refreshToken
+      };
+      saveSession();
+
+      refreshTimer = setInterval(ensureFreshToken, 20 * 1000);
+
+      await connectHub();
+    } catch (err) {
+      showLoginError(err.message);
+    } finally {
+      signInBtn.disabled = false;
+      signInBtn.textContent = "Sign in";
+    }
+  }
+
+  async function signOut(callServer) {
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+    if (connection) {
+      try { await connection.stop(); } catch { /* ignore */ }
+    }
+    connection = null;
+    latestRows = [];
+
+    if (callServer !== false && session) {
+      await apiLogout(session.refreshToken);
+    }
+
+    clearSession();
+    usernameInput.value = "";
+    passwordInput.value = "";
+    clearLoginError();
+    showLogin();
+  }
+
+  async function reloadPolicies() {
+    if (!(await ensureFreshToken())) return;
+    reloadPoliciesBtn.disabled = true;
+    try {
+      const res = await fetch("/admin/reload-policies", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + session.accessToken }
+      });
+      if (!res.ok) throw new Error("Server responded " + res.status);
+      const body = await res.json();
+      showDashboardBanner("ok", "Policies reloaded (" + body.roles.length + " role(s)). Refreshing your view…");
+      await connection.invoke("RequestDataStream");
+    } catch (err) {
+      showDashboardBanner("error", "Reload failed: " + err.message);
+    } finally {
+      reloadPoliciesBtn.disabled = false;
+    }
+  }
+
+  // ---- Wire up events ----
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    if (!username || !password) {
+      showLoginError("Enter both a username and password.");
+      return;
+    }
+    performLogin(username, password);
+  });
+
+  togglePasswordBtn.addEventListener("click", () => {
+    const isPassword = passwordInput.type === "password";
+    passwordInput.type = isPassword ? "text" : "password";
+    togglePasswordBtn.textContent = isPassword ? "Hide" : "Show";
+  });
+
+  document.querySelectorAll(".role-grid button[data-role]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const role = btn.dataset.role;
+      usernameInput.value = DEMO_USERNAMES[role];
+      passwordInput.value = DEMO_PASSWORD;
+      performLogin(DEMO_USERNAMES[role], DEMO_PASSWORD);
+    });
+  });
+
+  signOutBtn.addEventListener("click", () => signOut(true));
+  refreshBtn.addEventListener("click", async () => {
+    if (!(await ensureFreshToken())) return;
+    if (connection && connection.state === signalR.HubConnectionState.Connected) {
+      renderSkeleton();
+      connection.invoke("RequestDataStream").catch(err => showDashboardBanner("error", "Refresh failed: " + err.message));
+    }
+  });
+  reloadPoliciesBtn.addEventListener("click", reloadPolicies);
+
+  // ---- Resume a previous session on page load, if the refresh token
+  // is still good. This is real session resumption (via /auth/refresh),
+  // not a client-side trust decision - if the refresh token is expired
+  // or was revoked, ensureFreshToken signs the page out cleanly. ----
+  (async function resume() {
+    const saved = loadSession();
+    if (!saved) return;
+    session = saved;
+    refreshTimer = setInterval(ensureFreshToken, 20 * 1000);
+    const ok = await ensureFreshToken();
+    if (!ok) return;
+    try {
+      await connectHub();
+    } catch {
+      await signOut(false);
+    }
+  })();
+})();
+</script>
+
+</body>
+</html>
