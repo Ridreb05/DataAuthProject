@@ -1,7 +1,7 @@
 # Data Authorization Simulator
 
  .NET 8 SignalR service that demonstrates row- and column-level data authorization, enforced
-entirely by the `role` claim in a client's JWT, with the actual
+entirely by the `role` claim in a client's JWT, with the 
 authorization rules stored in the database.
 
 
