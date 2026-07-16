@@ -1,17 +1,10 @@
 # Data Authorization Simulator
 
-A minimal but industry-practice-following .NET 8 SignalR service that
-demonstrates row- and column-level data authorization, enforced
+ .NET 8 SignalR service that demonstrates row- and column-level data authorization, enforced
 entirely by the `role` claim in a client's JWT, with the actual
-authorization rules stored in the database rather than hardcoded in C#.
+authorization rules stored in the database.
 
-The project includes a real login backend: username/password
-authentication against bcrypt-hashed credentials, short-lived JWT
-access tokens, rotating refresh tokens with reuse detection, account
-lockout after repeated failed attempts, and rate limiting on the auth
-endpoints. Nothing here is a hand-crafted or pre-signed test token —
-`wwwroot/demo.html` signs you in for real, the same way any client
-would.
+
 
 ## Contents
 
