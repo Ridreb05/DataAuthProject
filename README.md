@@ -515,18 +515,6 @@ Demo accounts (seeded by the SQL script above), all using the password
 
 **Dashboard:**
 
-- A connection status pill (connecting / connected / reconnecting /
-  disconnected) reflects SignalR's real connection state, including
-  automatic reconnect attempts if the connection drops.
-- KPI cards show row count, column count, and the signed-in role at a
-  glance.
-- The table is sortable (click a column header) and has a client-side
-  search box — both operate only on rows/columns the server already
-  sent; neither can reveal anything the server withheld.
-- **Admins** get an extra "Reload access policies" button that calls
-  `POST /admin/reload-policies` with the current access token and
-  immediately re-requests data, so a rule change is visible in the same
-  screen without a manual `curl` call.
 - The page proactively calls `POST /auth/refresh` in the background
   (roughly a minute before the access token expires) to keep the
   session alive without asking for the password again — including
@@ -550,13 +538,6 @@ For a `Support` account, for example, the table renders only rows with
 not just hidden. An unrecognized or missing role claim on the token
 results in a `DataStreamError` banner shown on the dashboard instead of
 data.
-
-**To see a live rule change:** sign in as `manager.demo` on the demo
-page (no `PerformanceRating` column), run the `UPDATE` from
-[Changing the Rules](#changing-the-rules-no-restart-needed) in another
-window, click "Reload access policies" while signed in as
-`admin.demo`, then sign in as `manager.demo` again — the column now
-appears, with the app never restarted.
 
 ## Auth Endpoints
 
@@ -611,78 +592,4 @@ exposed over the wire.
 
 ## Notes on Scope
 
-This is a proof of concept, not a production system. Rather than one
-vague disclaimer, here's a specific checklist of what's actually
-covered versus what's still a deliberate gap.
-
-### Already in place
-
-- Real login: passwords are hashed with bcrypt (never stored or logged
-  in plaintext), short-lived JWT access tokens, rotating refresh tokens
-  with reuse detection, account lockout after 5 failed attempts, and
-  fixed-window rate limiting (5 requests/min per IP) on `/auth/login`
-  and `/auth/refresh`.
-- Generic, non-enumerable auth errors — an unknown username, wrong
-  password, and locked account all return the same message, so a
-  client (or attacker) can't tell which one occurred.
-- Row and column authorization rules live in the database, not in code
-  or a config file, and reload without a restart (`RoleAccessPolicies`,
-  `AccessPolicyProvider`).
-- Startup fails fast and loudly on bad configuration — missing JWT
-  secret/issuer/audience, a secret too short for HS256, a missing or
-  empty `RoleAccessPolicies` table, or an unknown column/operator in any
-  row.
-- Both queries the app issues run as stored procedures
-  (`dbo.sp_GetSensitiveRecordsForRole`, `dbo.sp_GetAccessPolicies`), not
-  inline SQL from the application — the query logic lives in the
-  database, and a SQL login for this app could be scoped to `EXEC`-only
-  on these two procedures instead of direct table access.
-- Row filter values are always passed as real SQL parameters, and
-  column names are turned into safe identifiers with `QUOTENAME` inside
-  the procedure; column names and operators are also checked against a
-  fixed whitelist in the app before ever reaching the database — never
-  string-concatenated from untrusted input at any layer.
-- Structured logging (`ILogger`) on every connection, disconnection,
-  denied request, successful data request (role + connection ID only,
-  never row contents), and every policy load/reload.
-- A global exception handler returns a generic error to the client and
-  logs the real exception server-side — no stack traces or internal
-  details are ever exposed over the wire.
-- `GET /health` gives an orchestrator or load balancer a real signal
-  (an actual SQL Server round-trip, not just "the process is up").
-- `.gitignore` excludes build output and any local override
-  (`appsettings.Development.json`) so a real deployment's secrets never
-  get committed alongside this repo's placeholder demo secret.
-
-### Still deliberately out of scope
-
-- **No external identity provider.** Login is self-hosted against the
-  `Users` table rather than delegating to Entra ID, Auth0, Cognito, or
-  similar — reasonable for a POC or an internal tool, but a real
-  production system with SSO, MFA, or federated identity requirements
-  would typically sit behind one of those instead of rolling its own
-  `Users` table.
-- **No password reset / account provisioning flow.** Users are seeded
-  directly via SQL; there's no "forgot password," email verification,
-  or self-service signup.
-- **No MFA.** Login is single-factor (password only).
-- **Manual policy reload, not automatic.** `/admin/reload-policies` must
-  be called explicitly after a database change. A production system
-  might poll on an interval, use a change-notification mechanism (SQL
-  Server Service Broker, a message queue), or accept a small staleness
-  window from a periodic refresh instead.
-- **No data-access audit trail.** Logs record *that* a role received
-  data and *when*, not the specific rows/columns returned per request —
-  a compliance-grade audit trail is a further step beyond this.
-- **Rate limiting is IP-based and in-memory only.** `/auth/login` and
-  `/auth/refresh` are throttled per-IP within a single instance; a
-  multi-instance deployment behind a load balancer would need a
-  distributed rate limiter (e.g. backed by Redis) for the limit to hold
-  across instances.
-- **Single table of data, single hub.** A system with many entities
-  would likely generalize this pattern (e.g. a `Table` column on
-  `RoleAccessPolicies`) rather than repeating it per entity.
-- **No automated tests.** The validation and filtering logic in
-  `AccessPolicyProvider`, the Repository, and the Service are all small
-  and isolated enough to unit test in a real fork of this project — no
-  test project is included here to keep the POC to its core concept.
+This is a proof of concept, not a production system. 
