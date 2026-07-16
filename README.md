@@ -57,21 +57,6 @@ short-lived (15 minutes by default); `demo.html` calls
 expires, without asking for the password again — see
 [Auth endpoints](#auth-endpoints).
 
-Two things are deliberate here:
-
-**Row filtering and column filtering are separated by layer.** The
-Repository is the only place that talks to SQL Server for the actual
-employee data, and it only ever fetches rows the caller is allowed to
-see — nothing downstream of it can accidentally leak a row it never
-should have received. The Service is the only place that decides which
-*columns* of an already-authorized row are safe to serialize.
-
-**Neither rule is written in C#, or even in a file.** The row filter and
-column list for every role live in the `RoleAccessPolicies` table.
-`AccessPolicyProvider` loads that table into an in-memory cache once at
-startup, and can reload it on demand — see
-[Changing the Rules](#changing-the-rules-no-restart-needed) — so a rule
-change takes effect without restarting the app.
 
 ## Project Structure
 
